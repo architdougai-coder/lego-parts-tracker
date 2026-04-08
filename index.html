@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lego Spare Parts 智能管理系統</title>
+    <title>Lego Spare Parts 智能管理系統 (Rebrickable 標準)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap');
@@ -18,11 +18,7 @@
     </style>
     <script>
         /**
-         * 圖片回退核心邏輯
-         * 1. 嘗試原色 (BrickLink 顏色 ID)
-         * 2. 嘗試黑色 (Color ID 11) - 這是 BrickLink 最穩定的基準圖
-         * 3. 嘗試 Rebrickable 零件圖庫 (通常是 Any Color 渲染圖)
-         * 4. 顯示 N/A 佔位符
+         * 圖片回退核心邏輯 (三層回退)
          */
         window.handleImageError = function(imgElement) {
             const currentSrc = imgElement.src;
@@ -34,15 +30,15 @@
                 return;
             }
 
-            // Fallback 1: 切換到黑色基準圖 (BrickLink ID 11)
+            // Fallback 1: 嘗試加載黑色 (BrickLink ID: 11) 基準圖
             if (!currentSrc.includes('/11/') && !currentSrc.includes('rebrickable')) {
                 imgElement.src = `https://img.bricklink.com/ItemImage/PN/11/${partId}.png`;
             } 
-            // Fallback 2: 嘗試 Rebrickable 的全局零件圖
+            // Fallback 2: 嘗試 Rebrickable 的通用渲染圖 (Any Color)
             else if (currentSrc.includes('/11/')) {
                 imgElement.src = `https://rebrickable.com/media/parts/elements/${partId}.jpg`;
             }
-            // 最終失敗
+            // Fallback 3: 最終失敗，顯示佔位符
             else {
                 showPlaceholder(imgElement);
             }
@@ -54,6 +50,7 @@
             if (placeholder) placeholder.classList.remove('hidden');
         }
 
+        // 庫存清單內部圖片的錯誤處理
         window.handleListImageError = function(img, partId) {
             const currentSrc = img.src;
             if (!currentSrc.includes('/11/') && !currentSrc.includes('rebrickable')) {
@@ -68,7 +65,6 @@
 </head>
 <body class="p-4 md:p-8">
     <div class="max-w-5xl mx-auto">
-        <!-- Header -->
         <header class="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div>
                 <h1 class="text-3xl font-bold text-gray-800 flex items-center gap-2">
@@ -92,10 +88,8 @@
             </div>
         </header>
 
-        <!-- Form Area -->
         <div class="bg-white rounded-2xl shadow-md p-6 mb-8 border border-gray-100">
             <div class="flex flex-col md:flex-row gap-6">
-                <!-- Image Preview Area -->
                 <div class="w-full md:w-32 h-32 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden part-image-preview relative">
                     <img id="imagePreview" src="" alt="零件預覽" class="max-w-full max-h-full object-contain hidden z-10" onerror="window.handleImageError(this)">
                     <div id="imagePlaceholder" class="text-gray-400 text-xs text-center p-2 z-0">
@@ -103,7 +97,6 @@
                     </div>
                 </div>
 
-                <!-- Form Controls -->
                 <div class="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                     <div>
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-1">零件編號 #</label>
@@ -144,7 +137,6 @@
             </div>
         </div>
 
-        <!-- Inventory List -->
         <div class="flex flex-wrap items-center justify-between gap-4 mb-4 px-2">
             <h2 class="font-bold text-gray-700 uppercase text-sm tracking-widest flex items-center gap-2">庫存清單</h2>
             <div class="flex items-center gap-3 bg-white p-1.5 rounded-lg border border-gray-200 shadow-sm">
@@ -163,7 +155,6 @@
         <div id="emptyState" class="hidden py-20 text-center bg-white rounded-2xl border border-gray-100"><p class="text-gray-400 font-medium">庫存清單為空</p></div>
     </div>
 
-    <!-- Toast -->
     <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white font-medium px-8 py-3 rounded-full text-sm opacity-0 transition-all duration-300 pointer-events-none shadow-2xl z-50 transform translate-y-4">
         <span id="toastMsg">更新成功</span>
     </div>
@@ -191,49 +182,83 @@
         let currentUser = null;
         let parts = []; 
 
-        // 核心數據庫：Rebrickable 顏色對齊
+        /**
+         * Rebrickable 完美對齊資料庫 (雙 ID 映射系統)
+         * id: Rebrickable 的官方 ID (用於介面與存儲)
+         * bl_id: 對應的 BrickLink ID (專門用來抓圖片)
+         * hex & name: Rebrickable 官方名稱與色碼
+         */
         const rebrickableColors = [
-            // Solid Colors
-            { id: "11", name: "Black", hex: "#05131D", type: "Solid" },
-            { id: "15", name: "White", hex: "#FFFFFF", type: "Solid" },
-            { id: "5", name: "Red", hex: "#B40000", type: "Solid" },
-            { id: "7", name: "Blue", hex: "#0055BF", type: "Solid" },
-            { id: "3", name: "Yellow", hex: "#F2CD37", type: "Solid" },
-            { id: "6", name: "Green", hex: "#237841", type: "Solid" },
-            { id: "4", name: "Orange", hex: "#FE8A18", type: "Solid" },
-            { id: "71", name: "Light Bluish Gray", hex: "#A0A5A9", type: "Solid" },
-            { id: "72", name: "Dark Bluish Gray", hex: "#6C6E68", type: "Solid" },
-            { id: "86", name: "Light Gray", hex: "#9BA19D", type: "Solid" },
-            { id: "10", name: "Dark Gray", hex: "#6D6E5C", type: "Solid" },
-            { id: "2", name: "Tan", hex: "#E4CD9E", type: "Solid" },
-            { id: "69", name: "Dark Tan", hex: "#958A73", type: "Solid" },
-            { id: "63", name: "Dark Blue", hex: "#0A3463", type: "Solid" },
-            { id: "80", name: "Dark Green", hex: "#184632", type: "Solid" },
-            { id: "59", name: "Dark Red", hex: "#720E0F", type: "Solid" },
-            { id: "150", name: "Medium Azure", hex: "#36AEBF", type: "Solid" },
-            { id: "153", name: "Dark Azure", hex: "#078BC9", type: "Solid" },
-            { id: "28", name: "Nougat", hex: "#D09168", type: "Solid" },
-            { id: "154", name: "Medium Lavender", hex: "#AC78BA", type: "Solid" },
-            { id: "115", name: "Pearl Gold", hex: "#AA7F2E", type: "Solid" },
-            
-            // Trans Colors
-            { id: "12", name: "Trans-Clear", hex: "#FCFCFC", type: "Trans" },
-            { id: "13", name: "Trans-Black", hex: "#635F52", type: "Trans" },
-            { id: "14", name: "Trans-Red", hex: "#C91A14", type: "Trans" },
-            { id: "15", name: "Trans-Dark Blue", hex: "#0020A0", type: "Trans" },
-            { id: "17", name: "Trans-Yellow", hex: "#F5CD2F", type: "Trans" },
-            { id: "18", name: "Trans-Green", hex: "#84B68D", type: "Trans" },
-            { id: "19", name: "Trans-Orange", hex: "#F08F1C", type: "Trans" },
-            { id: "20", name: "Trans-Light Blue", hex: "#AEE9EF", type: "Trans" },
-            { id: "21", name: "Trans-Neon Green", hex: "#D8EFA1", type: "Trans" },
-            { id: "22", name: "Trans-Neon Orange", hex: "#FF800D", type: "Trans" },
-            
-            // Pearl & Metallic
-            { id: "61", name: "Pearl Light Gray", hex: "#9CA3A8", type: "Pearl" },
-            { id: "77", name: "Pearl Dark Gray", hex: "#575857", type: "Pearl" },
-            { id: "115", name: "Pearl Gold", hex: "#AA7F2E", type: "Pearl" },
-            { id: "66", name: "Metallic Silver", hex: "#A5A9B4", type: "Metallic" },
-            { id: "67", name: "Metallic Gold", hex: "#DBAC34", type: "Metallic" }
+            // Solid
+            { id: "0", bl_id: "11", name: "Black", hex: "#05131D", type: "Solid" },
+            { id: "1", bl_id: "7", name: "Blue", hex: "#0055BF", type: "Solid" },
+            { id: "2", bl_id: "6", name: "Green", hex: "#237841", type: "Solid" },
+            { id: "3", bl_id: "39", name: "Dark Turquoise", hex: "#008F9B", type: "Solid" },
+            { id: "4", bl_id: "5", name: "Red", hex: "#B40000", type: "Solid" },
+            { id: "5", bl_id: "47", name: "Dark Pink", hex: "#C870A0", type: "Solid" },
+            { id: "6", bl_id: "8", name: "Brown", hex: "#583927", type: "Solid" },
+            { id: "7", bl_id: "9", name: "Light Gray", hex: "#9BA19D", type: "Solid" },
+            { id: "8", bl_id: "10", name: "Dark Gray", hex: "#6D6E5C", type: "Solid" },
+            { id: "9", bl_id: "62", name: "Light Blue", hex: "#B4D2E3", type: "Solid" },
+            { id: "10", bl_id: "36", name: "Bright Green", hex: "#4B9F4A", type: "Solid" },
+            { id: "11", bl_id: "40", name: "Light Turquoise", hex: "#55A5AF", type: "Solid" },
+            { id: "12", bl_id: "25", name: "Salmon", hex: "#F2705E", type: "Solid" },
+            { id: "13", bl_id: "23", name: "Pink", hex: "#FC97AC", type: "Solid" },
+            { id: "14", bl_id: "3", name: "Yellow", hex: "#F2CD37", type: "Solid" },
+            { id: "15", bl_id: "1", name: "White", hex: "#FFFFFF", type: "Solid" },
+            { id: "17", bl_id: "38", name: "Light Green", hex: "#C2DAB8", type: "Solid" },
+            { id: "18", bl_id: "33", name: "Light Yellow", hex: "#FBE696", type: "Solid" },
+            { id: "19", bl_id: "2", name: "Tan", hex: "#E4CD9E", type: "Solid" },
+            { id: "25", bl_id: "4", name: "Orange", hex: "#FE8A18", type: "Solid" },
+            { id: "26", bl_id: "71", name: "Magenta", hex: "#92397B", type: "Solid" },
+            { id: "27", bl_id: "34", name: "Lime", hex: "#BBE90B", type: "Solid" },
+            { id: "28", bl_id: "69", name: "Dark Tan", hex: "#958A73", type: "Solid" },
+            { id: "29", bl_id: "104", name: "Bright Pink", hex: "#FFBBFF", type: "Solid" },
+            { id: "30", bl_id: "157", name: "Medium Lavender", hex: "#AC78BA", type: "Solid" },
+            { id: "31", bl_id: "154", name: "Lavender", hex: "#E1D5ED", type: "Solid" },
+            { id: "69", bl_id: "153", name: "Dark Azure", hex: "#078BC9", type: "Solid" },
+            { id: "70", bl_id: "150", name: "Medium Azure", hex: "#36AEBF", type: "Solid" },
+            { id: "71", bl_id: "86", name: "Light Bluish Gray", hex: "#A0A5A9", type: "Solid" },
+            { id: "72", bl_id: "85", name: "Dark Bluish Gray", hex: "#6C6E68", type: "Solid" },
+            { id: "73", bl_id: "42", name: "Medium Blue", hex: "#5A93DB", type: "Solid" },
+            { id: "89", bl_id: "89", name: "Dark Purple", hex: "#3F3691", type: "Solid" },
+            { id: "92", bl_id: "28", name: "Flesh", hex: "#F0C8A0", type: "Solid" },
+            { id: "105", bl_id: "68", name: "Dark Orange", hex: "#A95500", type: "Solid" },
+            { id: "112", bl_id: "120", name: "Dark Brown", hex: "#352100", type: "Solid" },
+            { id: "151", bl_id: "151", name: "Very Light Bluish Gray", hex: "#E6E3E0", type: "Solid" },
+            { id: "191", bl_id: "110", name: "Bright Light Orange", hex: "#F8BB3D", type: "Solid" },
+            { id: "226", bl_id: "105", name: "Bright Light Blue", hex: "#9FC3E9", type: "Solid" },
+            { id: "272", bl_id: "63", name: "Dark Blue", hex: "#0A3463", type: "Solid" },
+            { id: "288", bl_id: "80", name: "Dark Green", hex: "#184632", type: "Solid" },
+            { id: "320", bl_id: "59", name: "Dark Red", hex: "#720E0F", type: "Solid" },
+            { id: "323", bl_id: "152", name: "Light Aqua", hex: "#ADC3C0", type: "Solid" },
+            { id: "378", bl_id: "48", name: "Sand Green", hex: "#A0BCAC", type: "Solid" },
+            { id: "379", bl_id: "55", name: "Sand Blue", hex: "#5A7184", type: "Solid" },
+            { id: "1051", bl_id: "220", name: "Coral", hex: "#FF6D77", type: "Solid" },
+
+            // Trans
+            { id: "32", bl_id: "13", name: "Trans-Black", hex: "#635F52", type: "Trans" },
+            { id: "33", bl_id: "14", name: "Trans-Dark Blue", hex: "#0020A0", type: "Trans" },
+            { id: "34", bl_id: "20", name: "Trans-Green", hex: "#84B68D", type: "Trans" },
+            { id: "35", bl_id: "108", name: "Trans-Bright Green", hex: "#D9E4A7", type: "Trans" },
+            { id: "36", bl_id: "17", name: "Trans-Red", hex: "#C91A09", type: "Trans" },
+            { id: "40", bl_id: "12", name: "Trans-Clear", hex: "#FCFCFC", type: "Trans" },
+            { id: "41", bl_id: "15", name: "Trans-Light Blue", hex: "#AEE9EF", type: "Trans" },
+            { id: "42", bl_id: "16", name: "Trans-Neon Green", hex: "#D8EFA1", type: "Trans" },
+            { id: "43", bl_id: "18", name: "Trans-Neon Orange", hex: "#FF800D", type: "Trans" },
+            { id: "44", bl_id: "19", name: "Trans-Yellow", hex: "#F5CD2F", type: "Trans" },
+            { id: "45", bl_id: "50", name: "Trans-Dark Pink", hex: "#DF6695", type: "Trans" },
+            { id: "46", bl_id: "98", name: "Trans-Orange", hex: "#F08F1C", type: "Trans" },
+            { id: "47", bl_id: "51", name: "Trans-Purple", hex: "#A5A5CB", type: "Trans" },
+
+            // Pearl / Metallic
+            { id: "61", bl_id: "61", name: "Pearl Light Gray", hex: "#9CA3A8", type: "Pearl" },
+            { id: "77", bl_id: "77", name: "Pearl Dark Gray", hex: "#575857", type: "Pearl" },
+            { id: "297", bl_id: "115", name: "Pearl Gold", hex: "#AA7F2E", type: "Pearl" },
+            { id: "383", bl_id: "21", name: "Chrome Silver", hex: "#E0E0E0", type: "Chrome" },
+            { id: "334", bl_id: "52", name: "Chrome Gold", hex: "#BBA53D", type: "Chrome" },
+            { id: "115", bl_id: "67", name: "Metallic Gold", hex: "#DBAC34", type: "Metallic" },
+            { id: "116", bl_id: "66", name: "Metallic Silver", hex: "#A5A9B4", type: "Metallic" }
         ];
 
         async function startApp() {
@@ -266,15 +291,18 @@
 
         function updatePreviewImage() {
             const id = document.getElementById('partId').value.trim();
-            const colorId = document.getElementById('partColor').value;
+            const colorSelect = document.getElementById('partColor');
             const img = document.getElementById('imagePreview');
             const placeholder = document.getElementById('imagePlaceholder');
-            if (!id || !img) return;
+            
+            if (!id || !img || !colorSelect) return;
+            
+            // 讀取隱藏的 BrickLink ID (dataset.blId) 來精準抓取圖片
+            const blId = colorSelect.options[colorSelect.selectedIndex].dataset.blId;
             
             img.classList.remove('hidden');
             if (placeholder) placeholder.classList.add('hidden');
-            // 首選：嘗試加載 BrickLink 指定色圖片
-            img.src = `https://img.bricklink.com/ItemImage/PN/${colorId}/${id}.png`;
+            img.src = `https://img.bricklink.com/ItemImage/PN/${blId}/${id}.png`;
         }
 
         window.addPart = async () => {
@@ -289,7 +317,8 @@
             
             await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'inventory', docKey), {
                 id, category: document.getElementById('partCategory').value,
-                colorId: colorSelect.value,
+                colorId: colorSelect.value, // 儲存 Rebrickable ID
+                blId: colorSelect.options[colorSelect.selectedIndex].dataset.blId, // 同時儲存 BrickLink ID 供渲染用
                 colorName: colorSelect.options[colorSelect.selectedIndex].text,
                 colorHex: colorSelect.options[colorSelect.selectedIndex].dataset.hex,
                 qty: existing ? existing.qty + qty : qty,
@@ -335,7 +364,7 @@
                             ${grouped[cat].map(p => `
                                 <tr class="hover:bg-slate-50 transition-colors">
                                     <td class="p-3 w-20">
-                                        <img src="https://img.bricklink.com/ItemImage/PN/${p.colorId}/${p.id}.png" 
+                                        <img src="https://img.bricklink.com/ItemImage/PN/${p.blId || 11}/${p.id}.png" 
                                              class="w-12 h-12 object-contain mx-auto" 
                                              onerror="window.handleListImageError(this, '${p.id}')">
                                     </td>
@@ -375,23 +404,28 @@
 
         window.exportToCSV = () => {
             if (!parts.length) return;
-            let csv = "data:text/csv;charset=utf-8,\uFEFF分類,編號,顏色,數量\n";
-            parts.forEach(p => csv += `${p.category},#${p.id},${p.colorName},${p.qty}\n`);
+            // 匯出時統一使用 Rebrickable 標準
+            let csv = "data:text/csv;charset=utf-8,\uFEFF分類,零件編號,Rebrickable_顏色ID,顏色名稱,數量\n";
+            parts.forEach(p => csv += `${p.category},#${p.id},${p.colorId},${p.colorName},${p.qty}\n`);
             const link = document.createElement("a");
             link.href = encodeURI(csv);
-            link.download = `Lego_Inventory_${new Date().toISOString().slice(0,10)}.csv`;
+            link.download = `Lego_Inventory_RB_${new Date().toISOString().slice(0,10)}.csv`;
             link.click();
         };
 
-        // 初始化顏色選單
+        // 初始化顏色選單並寫入 bl_id (BrickLink ID) 作為 data 屬性
         const colorSelect = document.getElementById('partColor');
         if (colorSelect) {
-            const types = ["Solid", "Trans", "Pearl", "Metallic"];
+            const types = ["Solid", "Trans", "Pearl", "Chrome", "Metallic"];
             types.forEach(t => {
                 const g = document.createElement('optgroup'); g.label = t.toUpperCase();
                 rebrickableColors.filter(c => c.type === t).forEach(c => {
-                    const o = document.createElement('option'); o.value = c.id; o.textContent = c.name; o.dataset.hex = c.hex;
-                    if(c.id === "11") o.selected = true; // 預設黑色
+                    const o = document.createElement('option'); 
+                    o.value = c.id; 
+                    o.textContent = `[${c.id}] ${c.name}`; 
+                    o.dataset.hex = c.hex;
+                    o.dataset.blId = c.bl_id; // 綁定 BrickLink ID
+                    if(c.id === "0") o.selected = true; // 預設黑色
                     g.appendChild(o);
                 });
                 colorSelect.appendChild(g);
