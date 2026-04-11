@@ -1,394 +1,757 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-HK">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lego Spare Parts 智能管理系統 (PDF 分類版)</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap');
-        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f1f5f9; }
-        .color-dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; border: 1px solid rgba(0,0,0,0.15); vertical-align: middle; }
-        .sync-indicator { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; padding: 4px 10px; border-radius: 99px; transition: all 0.3s; }
-        select optgroup { font-weight: bold; color: #475569; background: #f8fafc; }
-        .part-image-preview { background-image: radial-gradient(#e5e7eb 1px, transparent 1px); background-size: 10px 10px; }
-        .ai-card { background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%); border: 1px solid #dbeafe; }
-        .auto-tag { font-size: 10px; background: #dcfce7; color: #166534; padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-left: 4px; }
-    </style>
-    <script>
-        // 全域圖片錯誤處理
-        window.handleImageError = function(imgElement) {
-            const currentSrc = imgElement.src;
-            const partIdInput = document.getElementById('partId');
-            const partId = partIdInput ? partIdInput.value.trim() : "";
-            if (!partId) { showPlaceholder(imgElement); return; }
-            if (!currentSrc.includes('/11/') && !currentSrc.includes('rebrickable')) {
-                imgElement.src = `https://img.bricklink.com/ItemImage/PN/11/${partId}.png`;
-            } else if (currentSrc.includes('/11/')) {
-                imgElement.src = `https://rebrickable.com/media/parts/elements/${partId}.jpg`;
-            } else { showPlaceholder(imgElement); }
-        };
-        function showPlaceholder(imgElement) {
-            imgElement.classList.add('hidden');
-            const placeholder = document.getElementById('imagePlaceholder');
-            if (placeholder) placeholder.classList.remove('hidden');
-        }
-        window.handleListImageError = function(img, partId) {
-            const currentSrc = img.src;
-            if (!currentSrc.includes('/11/') && !currentSrc.includes('rebrickable')) {
-                img.src = `https://img.bricklink.com/ItemImage/PN/11/${partId}.png`;
-            } else if (currentSrc.includes('/11/')) {
-                img.src = `https://rebrickable.com/media/parts/elements/${partId}.jpg`;
-            } else { img.src = 'https://placehold.co/100x100?text=N/A'; }
-        };
-    </script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🧱 LEGO Spare Parts Tracker</title>
+  <style>
+    :root {
+      --bg: #0d0d0d;
+      --card: #1a1a1a;
+      --card2: #242424;
+      --accent: #e0e0e0;
+      --accent-hover: #ffffff;
+      --text: #f0f0f0;
+      --muted: #888888;
+      --border: #2e2e2e;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    header {
+      background: var(--card);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 2px solid #444444;
+      position: sticky; top: 0; z-index: 100;
+    }
+    header h1 { font-size: 1.3rem; display: flex; align-items: center; gap: 10px; }
+    .sync-badge {
+      font-size: 0.72rem; padding: 3px 10px;
+      border-radius: 20px; background: #1f1f1f;
+      color: #aaaaaa; border: 1px solid #555555;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .sync-badge.syncing { background: #2a2a2a; color: #dddddd; border-color: #888888; }
+    .sync-badge.offline { background: #222222; color: #888888; border-color: #555555; }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
+
+    /* === ADD FORM === */
+    .add-form-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 28px;
+      border: 1px solid var(--border);
+    }
+    .add-form-card h2 { font-size: 1rem; color: var(--muted); margin-bottom: 16px; letter-spacing: 1px; text-transform: uppercase; }
+    .form-row {
+      display: grid;
+      grid-template-columns: 140px 1fr 220px 100px auto;
+      gap: 12px;
+      align-items: start;
+    }
+    @media (max-width: 768px) {
+      .form-row { grid-template-columns: 1fr 1fr; }
+    }
+
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-group label { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    input, select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 9px 12px;
+      font-size: 0.95rem;
+      width: 100%;
+      transition: border-color 0.2s;
+    }
+    input:focus, select:focus { outline: none; border-color: #777777; }
+    input::placeholder { color: var(--muted); }
+
+    .preview-zone {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      width: 80px; height: 80px;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden;
+    }
+    .preview-zone img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .preview-zone .placeholder { color: var(--muted); font-size: 0.7rem; text-align: center; padding: 4px; }
+
+    .color-option { display: flex; align-items: center; gap: 8px; }
+    .color-dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); flex-shrink: 0; }
+    #colorSelect { padding-left: 8px; }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      font-weight: 600;
+      transition: opacity 0.2s, transform 0.1s, background 0.2s, color 0.2s;
+      white-space: nowrap;
+    }
+    .btn:hover { opacity: 0.95; }
+    .btn:active { transform: scale(0.97); }
+    .btn-add {
+      background: #2e2e2e;
+      color: #f0f0f0;
+      border: 1px solid #555555;
+      margin-top: 20px; width: 100%;
+    }
+    .btn-add:hover { background: #ffffff; color: #000000; }
+    .btn-export {
+      background: #222222;
+      color: #cccccc;
+      border: 1px solid #444444;
+    }
+    .btn-export:hover { background: #ffffff; color: #000000; }
+
+    .color-preview-strip {
+      display: flex; align-items: center; gap: 10px;
+      background: #111111; border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 12px; margin-top: 4px;
+    }
+    .color-preview-strip .big-dot { width: 22px; height: 22px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.3); }
+    .color-preview-strip span { font-size: 0.85rem; color: var(--text); }
+
+    /* === FILTERS === */
+    .filters {
+      display: flex; gap: 10px; flex-wrap: wrap;
+      margin-bottom: 20px; align-items: center;
+    }
+    .filters input { max-width: 200px; }
+    .filters select { max-width: 180px; }
+    .count-badge {
+      margin-left: auto;
+      background: #1e1e1e;
+      border-radius: 20px;
+      padding: 4px 14px; font-size: 0.82rem; color: #777777;
+    }
+
+    /* === TABLE === */
+    .table-wrap { overflow-x: auto; border-radius: var(--radius); }
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      background: #1e1e1e;
+      padding: 12px 16px;
+      text-align: left;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      cursor: pointer;
+      user-select: none;
+    }
+    thead th:hover { color: #f0f0f0; }
+    thead th .sort-icon { opacity: 0.4; margin-left: 4px; }
+    thead th.sorted .sort-icon { opacity: 1; color: #ffffff; }
+
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    tbody tr:hover { background: rgba(255,255,255,0.03); }
+    td { padding: 12px 16px; vertical-align: middle; font-size: 0.92rem; }
+
+    .part-img { width: 52px; height: 52px; object-fit: contain; background: #fff1; border-radius: 6px; padding: 2px; }
+    .part-num { font-family: monospace; font-weight: 700; font-size: 1rem; color: #e8e8e8; }
+    .part-name { font-size: 0.85rem; color: var(--muted); margin-top: 2px; }
+
+    .color-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 20px; padding: 3px 10px;
+      font-size: 0.82rem;
+    }
+    .color-chip .dot { width: 11px; height: 11px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); }
+
+    .qty-control { display: flex; align-items: center; gap: 8px; }
+    .qty-btn {
+      width: 28px; height: 28px;
+      border-radius: 50%; border: 1px solid #3a3a3a;
+      background: #2a2a2a;
+      color: var(--text);
+      cursor: pointer;
+      font-size: 1rem; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .qty-btn:hover { background: #ffffff; color: #000000; border-color: #ffffff; }
+    .qty-value { min-width: 28px; text-align: center; font-weight: 700; font-size: 1rem; }
+
+    .cat-badge {
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: #bbbbbb;
+      border-radius: 6px;
+      padding: 2px 8px;
+      font-size: 0.78rem;
+    }
+
+    .btn-del {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: #999999;
+      border-radius: 6px;
+      padding: 5px 10px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: background 0.15s, color 0.15s;
+    }
+    .btn-del:hover { background: #444444; color: #ffffff; }
+
+    .empty-state {
+      text-align: center; padding: 60px 20px; color: var(--muted);
+    }
+    .empty-state .emoji { font-size: 3rem; margin-bottom: 12px; }
+
+    #toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: #333333; color: #f0f0f0;
+      padding: 12px 20px; border-radius: 10px;
+      font-size: 0.88rem; z-index: 9999;
+      opacity: 0; transition: opacity 0.3s;
+      pointer-events: none;
+    }
+    #toast.show { opacity: 1; }
+    .img-thumb { cursor: zoom-in; }
+
+    #autoCategory { font-size:0.78rem; color:#aaaaaa; margin-top:2px; }
+  </style>
 </head>
-<body class="p-4 md:p-8">
-    <div class="max-w-5xl mx-auto">
-        <header class="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
-            <div>
-                <h1 class="text-3xl font-bold text-gray-800 flex items-center gap-2">
-                    <span class="text-red-600">LEGO</span> 智能零件庫
-                </h1>
-                <div class="flex flex-wrap items-center gap-3 mt-2">
-                    <div id="cloudStatus" class="sync-indicator bg-gray-200 text-gray-600 font-bold tracking-wide">雲端連線中...</div>
-                    <button onclick="window.exportToCSV()" class="sync-indicator bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 cursor-pointer shadow-sm">下載 CSV 備份</button>
-                    <button id="aiAdviceBtn" onclick="window.getAIAdvice()" class="sync-indicator bg-purple-50 text-purple-600 hover:bg-purple-100 border border-purple-200 cursor-pointer shadow-sm font-bold">✨ AI 創意靈感</button>
-                </div>
-            </div>
-            <div id="stats" class="text-sm font-medium bg-white px-5 py-2.5 rounded-full shadow-sm border border-gray-100 text-blue-600">載入中...</div>
-        </header>
+<body>
 
-        <div id="aiContainer" class="hidden mb-8 p-6 ai-card rounded-2xl shadow-sm border animate-fade-in">
-            <div class="flex justify-between items-start mb-4">
-                <h3 class="text-lg font-bold text-purple-700 flex items-center gap-2">✨ Gemini AI 拼砌建議</h3>
-                <button onclick="document.getElementById('aiContainer').classList.add('hidden')" class="text-gray-400 hover:text-gray-600">✕</button>
-            </div>
-            <div id="aiContent" class="text-slate-700 leading-relaxed text-sm whitespace-pre-wrap">分析中...</div>
+<header>
+  <h1>🧱 LEGO Spare Parts Tracker</h1>
+  <div style="display:flex;gap:10px;align-items:center">
+    <button class="btn btn-export" onclick="exportCSV()">⬇ 匯出 CSV</button>
+    <span id="syncBadge" class="sync-badge">● 連線中…</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- ADD FORM -->
+  <div class="add-form-card">
+    <h2>➕ 新增零件</h2>
+    <div class="form-row">
+
+      <div class="form-group" style="grid-row:span 2;align-items:center">
+        <label>預覽</label>
+        <div class="preview-zone" id="previewZone">
+          <div class="placeholder">輸入編號<br>睇預覽</div>
         </div>
+      </div>
 
-        <div class="bg-white rounded-2xl shadow-md p-6 mb-8 border border-gray-100">
-            <div class="flex flex-col md:flex-row gap-6">
-                <div class="w-full md:w-32 h-32 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden part-image-preview relative">
-                    <img id="imagePreview" src="" alt="預覽" class="max-w-full max-h-full object-contain hidden z-10" onerror="window.handleImageError(this)">
-                    <div id="imagePlaceholder" class="text-gray-400 text-xs text-center p-2 z-0">輸入編號<br>顯示圖片</div>
-                </div>
+      <div class="form-group">
+        <label>零件編號 *</label>
+        <input id="inputNum" type="text" placeholder="e.g. 3001, 32523" oninput="onPartNumInput(this.value)" />
+        <span id="autoCategory"></span>
+      </div>
 
-                <div class="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                    <div class="relative">
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1 flex justify-between">
-                            零件編號 # <span id="autoClassifying" class="hidden text-blue-500 animate-pulse text-[10px]">自動分類中...</span>
-                        </label>
-                        <input type="text" id="partId" oninput="window.handleIdInput(this.value)" placeholder="例如: 3001" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono text-lg">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">
-                            PDF 分類 <span id="isAutoTag" class="hidden auto-tag">AUTO</span>
-                        </label>
-                        <select id="partCategory" class="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 text-sm">
-                            <option value="BRICKS">1. BRICKS (基本磚)</option>
-                            <option value="PLATES">2. PLATES (薄板)</option>
-                            <option value="TILES">3. TILES (平滑板)</option>
-                            <option value="SLOPES">4. SLOPES (斜面磚)</option>
-                            <option value="ROUND">5. ROUND (圓形零件)</option>
-                            <option value="MODIFIED">6. MODIFIED (特殊變體磚)</option>
-                            <option value="TECHNIC">7. TECHNIC (科技系列)</option>
-                            <option value="CONNECTORS">8. CONNECTORS (連接件)</option>
-                            <option value="WHEELS">9. WHEELS & TIRES (輪胎)</option>
-                            <option value="WINDOWS">10. WINDOWS & DOORS (窗門)</option>
-                            <option value="WEDGE">11. WEDGE (楔形磚)</option>
-                            <option value="ARCHES">12. ARCHES (拱形)</option>
-                            <option value="BRACKETS">13. BRACKETS (托架)</option>
-                            <option value="PLANTS">14. PLANTS (植物)</option>
-                            <option value="ANIMAL">15. ANIMAL (動物/生物)</option>
-                            <option value="MINIFIG">16. MINIFIG (人仔配件)</option>
-                            <option value="OTHER">20. OTHER (其他)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1 flex items-center gap-1">
-                            顏色 <span id="selectedColorDot" class="color-dot ml-1"></span>
-                        </label>
-                        <select id="partColor" onchange="window.handleColorChange()" class="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-xs"></select>
-                    </div>
-                    <div class="flex gap-2 items-end">
-                        <div class="flex-1">
-                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1">數量</label>
-                            <input type="number" id="partQty" value="1" min="1" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-bold">
-                        </div>
-                        <button onclick="window.addPart()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-lg transition shadow-lg h-[46px]">加入</button>
-                    </div>
-                </div>
-            </div>
+      <div class="form-group">
+        <label>顏色 *</label>
+        <select id="colorSelect" onchange="onColorChange()"></select>
+        <div class="color-preview-strip" id="colorStrip">
+          <div class="big-dot" id="bigDot"></div>
+          <span id="colorName">—</span>
         </div>
+      </div>
 
-        <div id="inventoryContainer" class="space-y-6"></div>
-        <div id="emptyState" class="hidden py-20 text-center bg-white rounded-2xl border border-gray-100"><p class="text-gray-400 font-medium">庫存清單為空</p></div>
+      <div class="form-group">
+        <label>數量 *</label>
+        <input id="inputQty" type="number" min="1" value="1" placeholder="1" />
+      </div>
+
+      <div></div>
+
+      <div class="form-group" style="grid-column:2/4">
+        <label>零件名稱（可選）</label>
+        <input id="inputName" type="text" placeholder="e.g. Brick 2x4" />
+      </div>
+
+      <div class="form-group">
+        <label>分類</label>
+        <select id="catSelect">
+          <option value="">自動偵測</option>
+          <option>Brick</option>
+          <option>Plate</option>
+          <option>Tile</option>
+          <option>Slope</option>
+          <option>Technic</option>
+          <option>Minifig</option>
+          <option>Window / Door</option>
+          <option>Arch / Curve</option>
+          <option>Connector / Pin</option>
+          <option>Gear / Axle</option>
+          <option>Wedge</option>
+          <option>Bracket</option>
+          <option>Animal / Plant</option>
+          <option>Sticker</option>
+          <option>Other</option>
+        </select>
+      </div>
+
     </div>
+    <button class="btn btn-add" onclick="addPart()">＋ 加入清單</button>
+  </div>
 
-    <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white font-medium px-8 py-3 rounded-full text-sm opacity-0 transition-all duration-300 pointer-events-none shadow-2xl z-50">
-        <span id="toastMsg">更新成功</span>
+  <!-- FILTERS -->
+  <div class="filters">
+    <input type="text" id="searchInput" placeholder="🔍 搜尋編號 / 名稱…" oninput="renderTable()" style="max-width:220px"/>
+    <select id="filterColor" onchange="renderTable()">
+      <option value="">所有顏色</option>
+    </select>
+    <select id="filterCat" onchange="renderTable()">
+      <option value="">所有分類</option>
+      <option>Brick</option><option>Plate</option><option>Tile</option>
+      <option>Slope</option><option>Technic</option><option>Minifig</option>
+      <option>Window / Door</option><option>Arch / Curve</option>
+      <option>Connector / Pin</option><option>Gear / Axle</option>
+      <option>Wedge</option><option>Bracket</option>
+      <option>Animal / Plant</option><option>Sticker</option><option>Other</option>
+    </select>
+    <span class="count-badge" id="countBadge">0 項零件</span>
+  </div>
+
+  <!-- TABLE -->
+  <div class="table-wrap">
+    <table id="partsTable">
+      <thead>
+        <tr>
+          <th>圖片</th>
+          <th onclick="sortBy('num')" id="thNum">編號 <span class="sort-icon">↕</span></th>
+          <th>名稱</th>
+          <th onclick="sortBy('color')" id="thColor">顏色 <span class="sort-icon">↕</span></th>
+          <th onclick="sortBy('cat')" id="thCat">分類 <span class="sort-icon">↕</span></th>
+          <th onclick="sortBy('qty')" id="thQty">數量 <span class="sort-icon">↕</span></th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+    <div class="empty-state" id="emptyState" style="display:none">
+      <div class="emoji">📦</div>
+      <div>尚未有零件記錄，快啲加入第一件！</div>
     </div>
+  </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-        import { getFirestore, doc, setDoc, deleteDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+</div>
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyBHjaos0ygWdAFfBlqKVCfPhCKXxxedRQQ",
-            authDomain: "lego-de0f1.firebaseapp.com",
-            projectId: "lego-de0f1",
-            storageBucket: "lego-de0f1.firebasestorage.app",
-            messagingSenderId: "222666505877",
-            appId: "1:222666505877:web:553437bb1f03fc7460259c"
-        };
+<div id="toast"></div>
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = "lego-master-vault";
-        const apiKey = ""; 
+<!-- ===================== FIREBASE SDK ===================== -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
+  import {
+    getFirestore, collection, onSnapshot,
+    addDoc, updateDoc, deleteDoc, doc, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
 
-        let currentUser = null;
-        let parts = [];
-        let autoClassifyTimer = null;
+  // ⚠️ 將下方換成你自己 Firebase 項目的設定
+  const firebaseConfig = {
+    apiKey: "AIzaSyBHjaos0ygWdAFfBlqKVCfPhCKXxxedRQQ",
+    authDomain: "lego-de0f1.firebaseapp.com",
+    projectId: "lego-de0f1",
+    storageBucket: "lego-de0f1.firebasestorage.app",
+    messagingSenderId: "222666505877",
+    appId: "1:222666505877:web:553437bb1f03fc7460259c",
+    measurementId: "G-TGDLVGJXLX"
+  };
 
-        const brickLinkActiveColors = [
-            { id: "1", name: "White", hex: "#FFFFFF", type: "Solid" },
-            { id: "86", name: "Light Bluish Gray", hex: "#A0A5A9", type: "Solid" },
-            { id: "85", name: "Dark Bluish Gray", hex: "#6C6E68", type: "Solid" },
-            { id: "11", name: "Black", hex: "#212121", type: "Solid" },
-            { id: "59", name: "Dark Red", hex: "#720E0F", type: "Solid" },
-            { id: "5", name: "Red", hex: "#B40000", type: "Solid" },
-            { id: "167", name: "Reddish Orange", hex: "#FF5500", type: "Solid" },
-            { id: "220", name: "Coral", hex: "#FF6D77", type: "Solid" },
-            { id: "120", name: "Dark Brown", hex: "#352100", type: "Solid" },
-            { id: "168", name: "Umber", hex: "#5C3E35", type: "Solid" },
-            { id: "88", name: "Reddish Brown", hex: "#582A12", type: "Solid" },
-            { id: "240", name: "Medium Brown", hex: "#7B5D41", type: "Solid" },
-            { id: "69", name: "Dark Tan", hex: "#958A73", type: "Solid" },
-            { id: "2", name: "Tan", hex: "#E4CD9E", type: "Solid" },
-            { id: "90", name: "Light Nougat", hex: "#F6D7B3", type: "Solid" },
-            { id: "241", name: "Medium Tan", hex: "#FFC184", type: "Solid" },
-            { id: "28", name: "Nougat", hex: "#FFAF7B", type: "Solid" }, // 修正了 ## 錯誤
-            { id: "150", name: "Medium Nougat", hex: "#AA7D55", type: "Solid" },
-            { id: "169", name: "Sienna", hex: "#915B3D", type: "Solid" },
-            { id: "68", name: "Dark Orange", hex: "#A95500", type: "Solid" },
-            { id: "4", name: "Orange", hex: "#FE8A18", type: "Solid" },
-            { id: "110", name: "Bright Light Orange", hex: "#F8BB3D", type: "Solid" },
-            { id: "3", name: "Yellow", hex: "#F2CD37", type: "Solid" },
-            { id: "103", name: "Bright Light Yellow", hex: "#FFF03A", type: "Solid" },
-            { id: "236", name: "Neon Yellow", hex: "#D9E44C", type: "Solid" },
-            { id: "158", name: "Yellowish Green", hex: "#DFE000", type: "Solid" },
-            { id: "34", name: "Lime", hex: "#BBE90B", type: "Solid" },
-            { id: "155", name: "Olive Green", hex: "#94944C", type: "Solid" },
-            { id: "80", name: "Dark Green", hex: "#184632", type: "Solid" },
-            { id: "6", name: "Green", hex: "#237841", type: "Solid" },
-            { id: "36", name: "Bright Green", hex: "#4B9F4A", type: "Solid" },
-            { id: "48", name: "Sand Green", hex: "#A0BCAC", type: "Solid" },
-            { id: "39", name: "Dark Turquoise", hex: "#008F9B", type: "Solid" },
-            { id: "152", name: "Light Aqua", hex: "#ADC3C0", type: "Solid" },
-            { id: "63", name: "Dark Blue", hex: "#0A3463", type: "Solid" },
-            { id: "7", name: "Blue", hex: "#0055BF", type: "Solid" },
-            { id: "153", name: "Dark Azure", hex: "#078BC9", type: "Solid" },
-            { id: "156", name: "Medium Azure", hex: "#36AEBF", type: "Solid" },
-            { id: "42", name: "Medium Blue", hex: "#5A9AD2", type: "Solid" },
-            { id: "105", name: "Bright Light Blue", hex: "#9FB7D4", type: "Solid" },
-            { id: "55", name: "Sand Blue", hex: "#5A7184", type: "Solid" },
-            { id: "174", name: "Blue Violet", hex: "#6C6EB2", type: "Solid" },
-            { id: "89", name: "Dark Purple", hex: "#3F3691", type: "Solid" },
-            { id: "157", name: "Medium Lavender", hex: "#AC78BA", type: "Solid" },
-            { id: "154", name: "Lavender", hex: "#E1D5ED", type: "Solid" },
-            { id: "71", name: "Magenta", hex: "#92397B", type: "Solid" },
-            { id: "47", name: "Dark Pink", hex: "#C870A0", type: "Solid" },
-            { id: "104", name: "Bright Pink", hex: "#FFBBFF", type: "Solid" },
-            { id: "175", name: "Warm Pink", hex: "#FFC0CB", type: "Solid" },
-            { id: "12", name: "Trans-Clear", hex: "#FCFCFC", type: "Transparent" },
-            { id: "251", name: "Trans-Black", hex: "#635F52", type: "Transparent" },
-            { id: "17", name: "Trans-Red", hex: "#C91A09", type: "Transparent" },
-            { id: "18", name: "Trans-Neon Orange", hex: "#FF800D", type: "Transparent" },
-            { id: "98", name: "Trans-Orange", hex: "#F08F1C", type: "Transparent" },
-            { id: "19", name: "Trans-Yellow", hex: "#F5CD2F", type: "Transparent" },
-            { id: "108", name: "Trans-Bright Green", hex: "#D9E4A7", type: "Transparent" },
-            { id: "20", name: "Trans-Green", hex: "#84B68D", type: "Transparent" },
-            { id: "14", name: "Trans-Dark Blue", hex: "#0020A0", type: "Transparent" },
-            { id: "15", name: "Trans-Light Blue", hex: "#AEE9EF", type: "Transparent" },
-            { id: "51", name: "Trans-Purple", hex: "#A5A5D2", type: "Transparent" },
-            { id: "50", name: "Trans-Dark Pink", hex: "#DF6695", type: "Transparent" },
-            { id: "228", name: "Satin Trans-Clear", hex: "#E2E2E2", type: "Satin" },
-            { id: "170", name: "Satin Trans-Yellow", hex: "#EBD34F", type: "Satin" },
-            { id: "233", name: "Satin Trans-Bright Green", hex: "#8CC35C", type: "Satin" },
-            { id: "223", name: "Satin Trans-Light Blue", hex: "#93D0D9", type: "Satin" },
-            { id: "232", name: "Satin Trans-Dark Blue", hex: "#3E669B", type: "Satin" },
-            { id: "230", name: "Satin Trans-Purple", hex: "#9B8CC3", type: "Satin" },
-            { id: "224", name: "Satin Trans-Dark Pink", hex: "#D179A4", type: "Satin" },
-            { id: "95", name: "Flat Silver", hex: "#898788", type: "Pearl" },
-            { id: "77", name: "Pearl Dark Gray", hex: "#575857", type: "Pearl" },
-            { id: "115", name: "Pearl Gold", hex: "#AA7F2E", type: "Pearl" },
-            { id: "67", name: "Metallic Silver", hex: "#A5A9B4", type: "Metallic" },
-            { id: "65", name: "Metallic Gold", hex: "#DBAC34", type: "Metallic" }
-        ];
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const colRef = collection(db, "lego_parts");
 
-        async function init() {
-            const colorSelect = document.getElementById('partColor');
-            if (!colorSelect) return;
-            colorSelect.innerHTML = '';
-            const types = ["Solid", "Transparent", "Satin", "Pearl", "Metallic"];
-            types.forEach(t => {
-                const g = document.createElement('optgroup'); g.label = t.toUpperCase();
-                brickLinkActiveColors.filter(c => c.type === t).forEach(c => {
-                    const o = document.createElement('option'); 
-                    o.value = c.id; o.textContent = `[${c.id}] ${c.name}`; 
-                    o.dataset.hex = c.hex;
-                    if(c.id === "11") o.selected = true;
-                    g.appendChild(o);
-                });
-                colorSelect.appendChild(g);
-            });
-            window.handleColorChange();
-            await signInAnonymously(auth);
-        }
+  window._db = db;
+  window._colRef = colRef;
+  window._doc = doc;
+  window._addDoc = addDoc;
+  window._updateDoc = updateDoc;
+  window._deleteDoc = deleteDoc;
+  window._serverTimestamp = serverTimestamp;
+  window._firebaseReady = true;
+  document.getElementById("syncBadge").textContent = "● 雲端已連接";
+  document.getElementById("syncBadge").className = "sync-badge";
 
-        window.handleIdInput = (val) => {
-            document.getElementById('isAutoTag').classList.add('hidden');
-            if (val.trim().length >= 2) updatePreviewImage();
-            clearTimeout(autoClassifyTimer);
-            if (val.trim().length >= 3) {
-                autoClassifyTimer = setTimeout(() => window.autoClassify(val.trim()), 1000);
-            }
-        };
+  onSnapshot(colRef, (snapshot) => {
+    window._parts = [];
+    snapshot.forEach(d => window._parts.push({ firestoreId: d.id, ...d.data() }));
+    renderTable();
+  }, (err) => {
+    console.error(err);
+    document.getElementById("syncBadge").textContent = "● 離線 / 未設定";
+    document.getElementById("syncBadge").className = "sync-badge offline";
+  });
+</script>
 
-        window.autoClassify = async (partId) => {
-            const statusLabel = document.getElementById('autoClassifying');
-            const categorySelect = document.getElementById('partCategory');
-            statusLabel.classList.remove('hidden');
-            try {
-                const prompt = `Lego Part #${partId}. Based on "LEGO Brick Labels" (Brick Architect), classify it: BRICKS, PLATES, TILES, SLOPES, ROUND, MODIFIED, TECHNIC, CONNECTORS, WHEELS, WINDOWS, WEDGE, ARCHES, BRACKETS, PLANTS, ANIMAL, MINIFIG, OTHER. Return ONLY keyword.`;
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-                });
-                const data = await res.json();
-                const result = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim().toUpperCase();
-                if (result && Array.from(categorySelect.options).some(o => o.value === result)) {
-                    categorySelect.value = result;
-                    document.getElementById('isAutoTag').classList.remove('hidden');
-                }
-            } catch (e) { console.error(e); }
-            statusLabel.classList.add('hidden');
-        };
+<!-- ===================== APP LOGIC ===================== -->
+<script>
+const brickLinkActiveColors = [
+  { id:"1",   name:"White",              hex:"#FFFFFF", type:"Solid" },
+  { id:"86",  name:"Light Bluish Gray",  hex:"#A0A5A9", type:"Solid" },
+  { id:"85",  name:"Dark Bluish Gray",   hex:"#6C6E68", type:"Solid" },
+  { id:"11",  name:"Black",              hex:"#212121", type:"Solid" },
+  { id:"59",  name:"Dark Red",           hex:"#720E0F", type:"Solid" },
+  { id:"5",   name:"Red",                hex:"#B40000", type:"Solid" },
+  { id:"167", name:"Reddish Orange",     hex:"#FF5500", type:"Solid" },
+  { id:"220", name:"Coral",              hex:"#FF6D77", type:"Solid" },
+  { id:"120", name:"Dark Brown",         hex:"#352100", type:"Solid" },
+  { id:"168", name:"Umber",              hex:"#5C3E35", type:"Solid" },
+  { id:"88",  name:"Reddish Brown",      hex:"#582A12", type:"Solid" },
+  { id:"240", name:"Medium Brown",       hex:"#7B5D41", type:"Solid" },
+  { id:"69",  name:"Dark Tan",           hex:"#958A73", type:"Solid" },
+  { id:"2",   name:"Tan",                hex:"#E4CD9E", type:"Solid" },
+  { id:"90",  name:"Light Nougat",       hex:"#F6D7B3", type:"Solid" },
+  { id:"241", name:"Medium Tan",         hex:"#FFC184", type:"Solid" },
+  { id:"28",  name:"Nougat",             hex:"#FFAF7B", type:"Solid" },
+  { id:"150", name:"Medium Nougat",      hex:"#AA7D55", type:"Solid" },
+  { id:"169", name:"Sienna",             hex:"#915B3D", type:"Solid" },
+  { id:"68",  name:"Dark Orange",        hex:"#A95500", type:"Solid" },
+  { id:"4",   name:"Orange",             hex:"#FE8A18", type:"Solid" },
+  { id:"110", name:"Bright Light Orange",hex:"#F8BB3D", type:"Solid" },
+  { id:"3",   name:"Yellow",             hex:"#F2CD37", type:"Solid" },
+  { id:"103", name:"Bright Light Yellow",hex:"#FFF03A", type:"Solid" },
+  { id:"236", name:"Neon Yellow",        hex:"#D9E44C", type:"Solid" },
+  { id:"158", name:"Yellowish Green",    hex:"#DFE000", type:"Solid" },
+  { id:"34",  name:"Lime",               hex:"#BBE90B", type:"Solid" },
+  { id:"155", name:"Olive Green",        hex:"#94944C", type:"Solid" },
+  { id:"80",  name:"Dark Green",         hex:"#184632", type:"Solid" },
+  { id:"6",   name:"Green",              hex:"#237841", type:"Solid" },
+  { id:"36",  name:"Bright Green",       hex:"#4B9F4A", type:"Solid" },
+  { id:"48",  name:"Sand Green",         hex:"#A0BCAC", type:"Solid" },
+  { id:"39",  name:"Dark Turquoise",     hex:"#008F9B", type:"Solid" },
+  { id:"152", name:"Light Aqua",         hex:"#ADC3C0", type:"Solid" },
+  { id:"63",  name:"Dark Blue",          hex:"#0A3463", type:"Solid" },
+  { id:"7",   name:"Blue",               hex:"#0055BF", type:"Solid" },
+  { id:"153", name:"Dark Azure",         hex:"#078BC9", type:"Solid" },
+  { id:"156", name:"Medium Azure",       hex:"#36AEBF", type:"Solid" },
+  { id:"42",  name:"Medium Blue",        hex:"#5A9AD2", type:"Solid" },
+  { id:"105", name:"Bright Light Blue",  hex:"#9FB7D4", type:"Solid" },
+  { id:"55",  name:"Sand Blue",          hex:"#5A7184", type:"Solid" },
+  { id:"174", name:"Blue Violet",        hex:"#6C6EB2", type:"Solid" },
+  { id:"89",  name:"Dark Purple",        hex:"#3F3691", type:"Solid" },
+  { id:"157", name:"Medium Lavender",    hex:"#AC78BA", type:"Solid" },
+  { id:"154", name:"Lavender",           hex:"#E1D5ED", type:"Solid" },
+  { id:"71",  name:"Magenta",            hex:"#92397B", type:"Solid" },
+  { id:"47",  name:"Dark Pink",          hex:"#C870A0", type:"Solid" },
+  { id:"104", name:"Bright Pink",        hex:"#FFBBFF", type:"Solid" },
+  { id:"175", name:"Warm Pink",          hex:"#FFC0CB", type:"Solid" },
+  { id:"12",  name:"Trans-Clear",        hex:"#FCFCFC", type:"Transparent" },
+  { id:"251", name:"Trans-Black",        hex:"#635F52", type:"Transparent" },
+  { id:"17",  name:"Trans-Red",          hex:"#C91A09", type:"Transparent" },
+  { id:"18",  name:"Trans-Neon Orange",  hex:"#FF800D", type:"Transparent" },
+  { id:"98",  name:"Trans-Orange",       hex:"#F08F1C", type:"Transparent" },
+  { id:"19",  name:"Trans-Yellow",       hex:"#F5CD2F", type:"Transparent" },
+  { id:"108", name:"Trans-Bright Green", hex:"#D9E4A7", type:"Transparent" },
+  { id:"20",  name:"Trans-Green",        hex:"#84B68D", type:"Transparent" },
+  { id:"14",  name:"Trans-Dark Blue",    hex:"#0020A0", type:"Transparent" },
+  { id:"15",  name:"Trans-Light Blue",   hex:"#AEE9EF", type:"Transparent" },
+  { id:"51",  name:"Trans-Purple",       hex:"#A5A5D2", type:"Transparent" },
+  { id:"50",  name:"Trans-Dark Pink",    hex:"#DF6695", type:"Transparent" },
+  { id:"228", name:"Satin Trans-Clear",        hex:"#E2E2E2", type:"Satin" },
+  { id:"170", name:"Satin Trans-Yellow",       hex:"#EBD34F", type:"Satin" },
+  { id:"233", name:"Satin Trans-Bright Green", hex:"#8CC35C", type:"Satin" },
+  { id:"223", name:"Satin Trans-Light Blue",   hex:"#93D0D9", type:"Satin" },
+  { id:"232", name:"Satin Trans-Dark Blue",    hex:"#3E669B", type:"Satin" },
+  { id:"230", name:"Satin Trans-Purple",       hex:"#9B8CC3", type:"Satin" },
+  { id:"224", name:"Satin Trans-Dark Pink",    hex:"#D179A4", type:"Satin" },
+  { id:"95",  name:"Flat Silver",    hex:"#898788", type:"Pearl" },
+  { id:"77",  name:"Pearl Dark Gray",hex:"#575857", type:"Pearl" },
+  { id:"115", name:"Pearl Gold",     hex:"#AA7F2E", type:"Pearl" },
+  { id:"67",  name:"Metallic Silver",hex:"#A5A9B4", type:"Metallic" },
+  { id:"65",  name:"Metallic Gold",  hex:"#DBAC34", type:"Metallic" }
+];
 
-        window.handleColorChange = () => {
-            const select = document.getElementById('partColor');
-            const dot = document.getElementById('selectedColorDot');
-            if (select?.options[select.selectedIndex]) dot.style.backgroundColor = select.options[select.selectedIndex].dataset.hex;
-            updatePreviewImage();
-        };
+function autoDetectCategory(num) {
+  const n = parseInt(num);
+  if (isNaN(n)) return "";
+  if ([2780,3673,6558,6562,32556,32054,43093,4459].includes(n)) return "Connector / Pin";
+  if (num.startsWith("x") || num.startsWith("X")) return "Technic";
+  if ([3023,3024,3710,3832,3460,4477,60479,11212].includes(n) ||
+      (n>=3020 && n<=3030) || (n>=3816 && n<=3835)) return "Plate";
+  if ([3068,3069,2431,6636,87079,63864].includes(n)) return "Tile";
+  if ([3037,3038,3039,3040,3044,3045,3046,4286,60481].includes(n) ||
+      (n>=30363 && n<=30382)) return "Slope";
+  if ((n>=3626 && n<=3843) || [973,982,983,984].includes(n)) return "Minifig";
+  if ([3855,3856,3857,3960,60596,60603].includes(n)) return "Window / Door";
+  if ((n>=3700 && n<=3713) || (n>=32000 && n<=32316) || (n>=42000 && n<=42100)) return "Technic";
+  if ([3001,3002,3003,3004,3005,3006,3007,3008,3009,3010,3011,3012,3013,3014,
+       2357,6091,4733,30414].includes(n)) return "Brick";
+  if (n>=3001 && n<=3016) return "Brick";
+  return "Other";
+}
 
-        function updatePreviewImage() {
-            const id = document.getElementById('partId').value.trim();
-            const colorSelect = document.getElementById('partColor');
-            const img = document.getElementById('imagePreview');
-            if (!id || !colorSelect.options[colorSelect.selectedIndex]) return;
-            img.classList.remove('hidden');
-            document.getElementById('imagePlaceholder').classList.add('hidden');
-            // 使用零件編號與選定的顏色渲染預覽圖
-            img.src = `https://img.bricklink.com/ItemImage/PN/${colorSelect.value}/${id}.png`;
-        }
+function blImgUrl(partNum, colorId) {
+  return `https://img.bricklink.com/ItemImage/PN/${colorId}/${partNum}.png`;
+}
+function blImgFallback(partNum) {
+  return `https://img.bricklink.com/ItemImage/PN/11/${partNum}.png`;
+}
 
-        onAuthStateChanged(auth, (user) => {
-            currentUser = user;
-            if (user) {
-                document.getElementById('cloudStatus').innerHTML = `<span class="h-2 w-2 rounded-full bg-green-500"></span> Online`;
-                onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'inventory'), (snap) => {
-                    parts = snap.docs.map(doc => ({ docId: doc.id, ...doc.data() }));
-                    window.renderInventory();
-                }, (err) => console.error("Firestore error:", err));
-            }
-        });
+window._parts = [];
+let sortField = "num", sortAsc = true;
 
-        window.addPart = async () => {
-            const id = document.getElementById('partId').value.trim();
-            const colorSelect = document.getElementById('partColor');
-            if (!id || !currentUser) return;
-            const opt = colorSelect.options[colorSelect.selectedIndex];
-            const key = `${id}_${colorSelect.value}`;
-            const existing = parts.find(p => p.docId === key);
-            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'inventory', key), {
-                id, category: document.getElementById('partCategory').value,
-                colorId: colorSelect.value, 
-                colorName: opt.text.replace(/\[\d+\] /, ''), colorHex: opt.dataset.hex,
-                qty: existing ? existing.qty + 1 : 1
-            });
-            showToast(`已加入 #${id}`);
-        };
+function initColorSelect(selectId) {
+  const sel = document.getElementById(selectId);
+  sel.innerHTML = "";
+  let lastType = "";
+  brickLinkActiveColors.forEach(c => {
+    if (c.type !== lastType) {
+      const og = document.createElement("optgroup");
+      og.label = `— ${c.type} —`;
+      sel.appendChild(og);
+      lastType = c.type;
+    }
+    const opt = document.createElement("option");
+    opt.value = c.id;
+    opt.textContent = c.name;
+    opt.dataset.hex = c.hex;
+    opt.dataset.name = c.name;
+    sel.appendChild(opt);
+  });
+  const fsel = document.getElementById("filterColor");
+  brickLinkActiveColors.forEach(c => {
+    const opt = document.createElement("option");
+    opt.value = c.id;
+    opt.textContent = c.name;
+    fsel.appendChild(opt);
+  });
+}
 
-        window.renderInventory = () => {
-            const container = document.getElementById('inventoryContainer');
-            container.innerHTML = '';
-            if (!parts.length) { document.getElementById('emptyState').classList.remove('hidden'); return; }
-            document.getElementById('emptyState').classList.add('hidden');
-            const grouped = parts.reduce((acc, p) => { (acc[p.category] = acc[p.category] || []).push(p); return acc; }, {});
-            Object.keys(grouped).sort().forEach(cat => {
-                const section = document.createElement('div');
-                section.className = "bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6";
-                section.innerHTML = `<div class="bg-slate-700 text-white px-6 py-2 text-xs font-bold uppercase">${cat}</div>
-                    <table class="w-full"><tbody>
-                        ${grouped[cat].map(p => `
-                            <tr class="border-b">
-                                <td class="p-3 w-20"><img src="https://img.bricklink.com/ItemImage/PN/${p.colorId}/${p.id}.png" class="w-10 h-10 object-contain mx-auto" onerror="window.handleListImageError(this, '${p.id}')"></td>
-                                <td class="p-3 font-bold">#${p.id}</td>
-                                <td class="p-3"><span class="color-dot" style="background-color:${p.colorHex}"></span> ${p.colorName}</td>
-                                <td class="p-3 text-center">x${p.qty}</td>
-                                <td class="p-3 text-right"><button onclick="window.deletePart('${p.docId}')" class="text-red-400 p-2">✕</button></td>
-                            </tr>`).join('')}
-                    </tbody></table>`;
-                container.appendChild(section);
-            });
-            document.getElementById('stats').innerText = `共 ${parts.length} 款零件`;
-        };
+function onColorChange() {
+  const sel = document.getElementById("colorSelect");
+  const opt = sel.options[sel.selectedIndex];
+  if (!opt) return;
+  const hex = opt.dataset.hex || "#888";
+  const name = opt.dataset.name || "";
+  document.getElementById("bigDot").style.background = hex;
+  document.getElementById("bigDot").style.borderColor = hex === "#FFFFFF" ? "#ccc" : hex;
+  document.getElementById("colorName").textContent = name;
+  const num = document.getElementById("inputNum").value.trim();
+  if (num) loadPreview(num, sel.value);
+}
 
-        window.deletePart = async (id) => {
-            if (!currentUser) return;
-            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'inventory', id));
-        };
+let previewTimer = null;
+function onPartNumInput(val) {
+  const trimmed = val.trim();
+  document.getElementById("autoCategory").textContent = "";
+  if (!trimmed) {
+    document.getElementById("previewZone").innerHTML = '<div class="placeholder">輸入編號<br>睇預覽</div>';
+    return;
+  }
+  const cat = autoDetectCategory(trimmed);
+  if (cat) document.getElementById("autoCategory").textContent = `自動分類: ${cat}`;
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(() => {
+    const colorId = document.getElementById("colorSelect").value;
+    loadPreview(trimmed, colorId);
+  }, 400);
+}
 
-        window.getAIAdvice = async () => {
-            const aiContainer = document.getElementById('aiContainer');
-            const aiContent = document.getElementById('aiContent');
-            if (parts.length === 0) return;
-            aiContainer.classList.remove('hidden');
-            aiContent.innerText = "思考中... ✨";
-            const summary = parts.map(p => `${p.qty}x ${p.colorName} ${p.id}`).join(', ');
-            try {
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: `我目前有這些 LEGO 零件: ${summary}。請給我 3 個拼砌靈感（繁體中文）。` }] }] })
-                });
-                const data = await res.json();
-                aiContent.innerText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-            } catch (e) { aiContent.innerText = "連線失敗。"; }
-        };
+function loadPreview(partNum, colorId) {
+  const zone = document.getElementById("previewZone");
+  const img = new Image();
+  img.style.cssText = "max-width:76px;max-height:76px;object-fit:contain";
+  img.src = blImgUrl(partNum, colorId);
+  img.onload = () => { zone.innerHTML = ""; zone.appendChild(img); };
+  img.onerror = () => {
+    const fb = new Image();
+    fb.style.cssText = img.style.cssText;
+    fb.src = blImgFallback(partNum);
+    fb.onload = () => { zone.innerHTML = ""; zone.appendChild(fb); };
+    fb.onerror = () => { zone.innerHTML = '<div class="placeholder">無圖片</div>'; };
+  };
+}
 
-        window.exportToCSV = () => {
-            let csv = "data:text/csv;charset=utf-8,\uFEFF分類,零件編號,顏色,數量\n";
-            parts.forEach(p => csv += `${p.category},#${p.id},${p.colorName},${p.qty}\n`);
-            const link = document.createElement("a");
-            link.href = encodeURI(csv);
-            link.download = `Lego_Inventory.csv`;
-            link.click();
-        };
+async function addPart() {
+  const num  = document.getElementById("inputNum").value.trim();
+  const qty  = parseInt(document.getElementById("inputQty").value) || 1;
+  const name = document.getElementById("inputName").value.trim();
+  const colorSel  = document.getElementById("colorSelect");
+  const colorId   = colorSel.value;
+  const colorName = colorSel.options[colorSel.selectedIndex]?.dataset.name || "";
+  const colorHex  = colorSel.options[colorSel.selectedIndex]?.dataset.hex || "#888";
+  let   cat  = document.getElementById("catSelect").value || autoDetectCategory(num) || "Other";
 
-        function showToast(msg) {
-            const t = document.getElementById('toast');
-            document.getElementById('toastMsg').innerText = msg;
-            t.style.opacity = '1'; setTimeout(() => t.style.opacity = '0', 2000);
-        }
+  if (!num) { showToast("⚠️ 請輸入零件編號"); return; }
+  if (qty < 1) { showToast("⚠️ 數量需至少為 1"); return; }
 
-        init();
-    </script>
+  const data = { num, name, colorId, colorName, colorHex, cat, qty,
+                 createdAt: window._serverTimestamp ? window._serverTimestamp() : Date.now() };
+
+  if (window._firebaseReady) {
+    try {
+      await window._addDoc(window._colRef, data);
+      showToast("✅ 已加入雲端");
+    } catch(e) {
+      console.error(e);
+      showToast("❌ Firebase 錯誤，請檢查設定");
+      return;
+    }
+  } else {
+    window._parts.push({ firestoreId: "local_"+Date.now(), ...data });
+    renderTable();
+    showToast("📦 已加入 (本地模式)");
+  }
+
+  document.getElementById("inputNum").value = "";
+  document.getElementById("inputQty").value = "1";
+  document.getElementById("inputName").value = "";
+  document.getElementById("catSelect").value = "";
+  document.getElementById("autoCategory").textContent = "";
+  document.getElementById("previewZone").innerHTML = '<div class="placeholder">輸入編號<br>睇預覽</div>';
+}
+
+async function updateQty(firestoreId, delta) {
+  const part = window._parts.find(p => p.firestoreId === firestoreId);
+  if (!part) return;
+  const newQty = Math.max(0, (part.qty || 0) + delta);
+  if (window._firebaseReady && !firestoreId.startsWith("local_")) {
+    await window._updateDoc(window._doc(window._db, "lego_parts", firestoreId), { qty: newQty });
+  } else {
+    part.qty = newQty;
+    renderTable();
+  }
+}
+
+async function deletePart(firestoreId) {
+  if (!confirm("確定刪除呢個零件記錄？")) return;
+  if (window._firebaseReady && !firestoreId.startsWith("local_")) {
+    await window._deleteDoc(window._doc(window._db, "lego_parts", firestoreId));
+  } else {
+    window._parts = window._parts.filter(p => p.firestoreId !== firestoreId);
+    renderTable();
+  }
+  showToast("🗑 已刪除");
+}
+
+function sortBy(field) {
+  if (sortField === field) sortAsc = !sortAsc;
+  else { sortField = field; sortAsc = true; }
+  ["thNum","thColor","thCat","thQty"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove("sorted");
+  });
+  const map = {num:"thNum", color:"thColor", cat:"thCat", qty:"thQty"};
+  if (map[field]) document.getElementById(map[field]).classList.add("sorted");
+  renderTable();
+}
+
+function renderTable() {
+  const search    = (document.getElementById("searchInput")?.value || "").toLowerCase();
+  const filterCol = document.getElementById("filterColor")?.value || "";
+  const filterCat = document.getElementById("filterCat")?.value || "";
+
+  let data = (window._parts || []).filter(p => {
+    const matchSearch = !search || p.num?.toLowerCase().includes(search) || p.name?.toLowerCase().includes(search);
+    const matchColor  = !filterCol || p.colorId === filterCol;
+    const matchCat    = !filterCat || p.cat === filterCat;
+    return matchSearch && matchColor && matchCat;
+  });
+
+  data.sort((a,b) => {
+    let va = a[sortField === "color" ? "colorName" : sortField] ?? "";
+    let vb = b[sortField === "color" ? "colorName" : sortField] ?? "";
+    if (sortField === "qty") { va = +va; vb = +vb; }
+    if (va < vb) return sortAsc ? -1 : 1;
+    if (va > vb) return sortAsc ? 1 : -1;
+    return 0;
+  });
+
+  const tbody = document.getElementById("tableBody");
+  const empty = document.getElementById("emptyState");
+  document.getElementById("countBadge").textContent = `${data.length} 項零件`;
+
+  if (data.length === 0) {
+    tbody.innerHTML = "";
+    empty.style.display = "block";
+    return;
+  }
+  empty.style.display = "none";
+
+  tbody.innerHTML = data.map(p => {
+    const imgUrl  = blImgUrl(p.num, p.colorId);
+    const fbUrl   = blImgFallback(p.num);
+    const dotStyle = `background:${p.colorHex};border-color:${p.colorHex==='#FFFFFF'?'#ccc':p.colorHex}`;
+    return `
+    <tr>
+      <td>
+        <img class="part-img img-thumb"
+          src="${imgUrl}"
+          onerror="this.src='${fbUrl}';this.onerror=null"
+          alt="${p.num}" />
+      </td>
+      <td>
+        <div class="part-num">${p.num}</div>
+        ${p.name ? `<div class="part-name">${p.name}</div>` : ""}
+      </td>
+      <td><div class="part-name">${p.name || "—"}</div></td>
+      <td>
+        <div class="color-chip">
+          <div class="dot" style="${dotStyle}"></div>
+          ${p.colorName}
+        </div>
+      </td>
+      <td><span class="cat-badge">${p.cat || "Other"}</span></td>
+      <td>
+        <div class="qty-control">
+          <button class="qty-btn" onclick="updateQty('${p.firestoreId}', -1)">−</button>
+          <span class="qty-value">${p.qty}</span>
+          <button class="qty-btn" onclick="updateQty('${p.firestoreId}', 1)">＋</button>
+        </div>
+      </td>
+      <td>
+        <button class="btn-del" onclick="deletePart('${p.firestoreId}')">🗑 刪除</button>
+      </td>
+    </tr>`;
+  }).join("");
+}
+
+function exportCSV() {
+  const data = window._parts || [];
+  if (data.length === 0) { showToast("⚠️ 清單係空嘅"); return; }
+  const header = ["Part Number","Part Name","Color ID","Color Name","Category","Quantity"];
+  const rows = data.map(p => [
+    `"${p.num}"`, `"${p.name||""}"`, `"${p.colorId}"`,
+    `"${p.colorName}"`, `"${p.cat||""}"`, p.qty
+  ].join(","));
+  const csv = [header.join(","), ...rows].join("\n");
+  const blob = new Blob(["\uFEFF"+csv], { type: "text/csv;charset=utf-8" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href = url; a.download = `lego_parts_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+  showToast("📥 CSV 已下載");
+}
+
+function showToast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2500);
+}
+
+window.addPart        = addPart;
+window.updateQty      = updateQty;
+window.deletePart     = deletePart;
+window.sortBy         = sortBy;
+window.exportCSV      = exportCSV;
+window.onPartNumInput = onPartNumInput;
+window.onColorChange  = onColorChange;
+window.renderTable    = renderTable;
+
+initColorSelect("colorSelect");
+onColorChange();
+renderTable();
+</script>
 </body>
 </html>
